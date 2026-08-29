@@ -1,2 +1,2 @@
 # lab-nginx-docker
-lab nginx with docker on cloud vm
+lab nginx with docker on cloud vm.
