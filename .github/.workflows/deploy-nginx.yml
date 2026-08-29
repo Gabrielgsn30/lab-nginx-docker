@@ -1,0 +1,47 @@
+name: Deploy Nginx Reverse Proxy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      # 1. Copia o arquivo default.conf para a VM
+      - name: Copiar arquivo de configuracao para a VM
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          source: "default.conf"
+          target: "/home/${{ secrets.VM_USER }}/nginx"
+
+      # 2. Prepara a rede e sobe o Nginx na VM
+      - name: Executar Deploy do Nginx via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            # Garante que a rede lab-net existe (cria se não existir)
+            docker network inspect lab-net >/dev/null 2>&1 || docker network create --driver bridge lab-net
+
+            # Para e remove o container anterior se existir
+            docker stop reverse-proxy || true
+            docker rm reverse-proxy || true
+
+            # Sobe o Nginx na rede lab-net
+            docker run -d \
+              --name reverse-proxy \
+              --network lab-net \
+              -p 80:80 \
+              -v /home/${{ secrets.VM_USER }}/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro \
+              --restart always \
+              nginx:alpine
